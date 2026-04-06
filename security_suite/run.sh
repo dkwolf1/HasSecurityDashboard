@@ -17,4 +17,4 @@ echo "Installed packages:"
 pip list
 
 echo "Starting FastAPI server..."
-uvicorn app.main:app --host 0.0.0.0 --port 8081
+uvicorn main:app --host 0.0.0.0 --port 8081
