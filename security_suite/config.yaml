@@ -10,15 +10,15 @@ startup: services
 boot: auto
 init: false
 ingress: true
-ingress_port: 8080
+ingress_port: 8081
 panel_icon: mdi:shield-search
 panel_title: HasSecurityDash
 host_network: true
 hassio_api: true
 ports:
-  8080/tcp: 8080
+  8080/tcp: null
 ports_description:
-  8080/tcp: HasSecurityDash WebUI port
+  8080/tcp: HasSecurityDash WebUI port (internal only)
 environment:
   PUID: "8080"
   PGID: "8080"
