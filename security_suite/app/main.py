@@ -4,7 +4,15 @@ from fastapi.staticfiles import StaticFiles
 import os
 import asyncio
 from datetime import datetime
-from security_scanner import scanner
+
+# Try to import scanner, but don't fail if it doesn't work
+try:
+    from security_scanner import scanner
+    SCANNER_AVAILABLE = True
+    print("Security scanner imported successfully")
+except Exception as e:
+    print(f"Security scanner import failed: {e}")
+    SCANNER_AVAILABLE = False
 
 print("Starting FastAPI app...")
 
@@ -400,6 +408,25 @@ async def index(request: Request):
                         throw new Error(data.error || 'Scan failed');
                     }
                     
+                    if (data.status === 'demo') {
+                        // Show demo data warning
+                        resultsDiv.innerHTML = `
+                            <div class="mt-4 space-y-3">
+                                <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 mr-2"></i>
+                                            <span class="text-sm font-medium text-yellow-800">Demo Mode - Scanner not available</span>
+                                        </div>
+                                        <span class="text-xs text-yellow-600">Security Score: ${data.security_score}/100</span>
+                                    </div>
+                                    <div class="mt-2 text-sm text-yellow-700">
+                                        Showing demo data. Check addon logs for scanner import issues.
+                                    </div>
+                                </div>
+                        `;
+                    }
+                    
                     // Show scan results
                     resultsDiv.innerHTML = `
                         <div class="mt-4 space-y-3">
@@ -624,6 +651,29 @@ async def scan_network(network_range: str = "192.168.1.0/24"):
     """Perform real security scan of network"""
     try:
         print(f"Starting security scan for network: {network_range}")
+        
+        if not SCANNER_AVAILABLE:
+            # Return demo data if scanner is not available
+            return {
+                "status": "demo",
+                "scan_time": datetime.now().isoformat(),
+                "network_range": network_range,
+                "devices": [
+                    {
+                        "ip": "192.168.1.1",
+                        "hostname": "router",
+                        "type": "secure",
+                        "ports": [22, 80, 443],
+                        "services": ["ssh", "http", "https"],
+                        "vulnerabilities": 0,
+                        "security_level": "secure"
+                    }
+                ],
+                "open_ports": 3,
+                "vulnerabilities": [],
+                "security_score": 85,
+                "recommendations": ["Scanner not available - showing demo data"]
+            }
         
         # Perform real security scan
         scan_results = await scanner.scan_network_security(network_range)
