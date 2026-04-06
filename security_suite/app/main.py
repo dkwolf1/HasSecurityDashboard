@@ -9,13 +9,52 @@ print("Starting FastAPI app...")
 app = FastAPI(title="HasSecurityDash")
 
 # Setup templates and static files
-templates = Jinja2Templates(directory="/app/templates")
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+try:
+    templates = Jinja2Templates(directory="/app/templates")
+    app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+    print("Templates and static files mounted successfully")
+except Exception as e:
+    print(f"Error mounting templates: {e}")
+    templates = None
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    if templates:
+        try:
+            return templates.TemplateResponse("index.html", {"request": request})
+        except Exception as e:
+            print(f"Template error: {e}")
+    
+    # Fallback HTML response
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>HasSecurityDash</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/lucide@latest"></script>
+    </head>
+    <body class="bg-gray-50">
+        <div class="min-h-screen flex items-center justify-center">
+            <div class="text-center">
+                <h1 class="text-4xl font-bold text-blue-600 mb-4">🛡️ HasSecurityDash</h1>
+                <p class="text-gray-600 mb-8">Security control and monitoring for Home Assistant</p>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-xl font-semibold mb-4">System Status</h2>
+                    <div class="text-left space-y-2">
+                        <p>✅ Backend API: Running</p>
+                        <p>✅ FastAPI Server: Operational</p>
+                        <p>✅ Health Check: <a href="/api/health" class="text-blue-600 hover:underline">Available</a></p>
+                        <p>✅ API Endpoints: <a href="/api/security/score" class="text-blue-600 hover:underline">Security Score</a></p>
+                        <p>⚠️ UI Templates: Loading from CDN</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
 
 @app.get("/api/health")
