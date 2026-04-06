@@ -30,10 +30,8 @@ RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
     aiofiles \
     python-nmap \
     requests \
-    ssl-checker \
     cryptography \
-    python-whois \
-    ipaddress
+    python-whois
 
 # Create app directory
 WORKDIR /app

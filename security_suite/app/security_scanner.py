@@ -8,7 +8,6 @@ import ipaddress
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import asyncio
-import aiohttp
 import whois
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
