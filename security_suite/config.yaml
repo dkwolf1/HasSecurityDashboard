@@ -1,27 +1,31 @@
-name: "Security Suite"
+name: HasSecurityDash
 version: "0.1.0"
-slug: "security_suite"
-description: "Security auditing add-on for Home Assistant OS"
-url: "https://github.com/dkwolf1/HasSecurityDash"
+slug: hassecuritydash
+description: "🛡️ Security control and monitoring for Home Assistant"
+url: https://github.com/dkwolf1/HasSecurityDash
 arch:
-  - amd64
   - aarch64
+  - amd64
 startup: services
 boot: auto
 init: false
 ingress: true
 ingress_port: 8080
 panel_icon: mdi:shield-search
-panel_title: Security Suite
+panel_title: HasSecurityDash
 host_network: true
+hassio_api: true
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: HasSecurityDash WebUI port
+environment:
+  PUID: "8080"
+  PGID: "8080"
+  TZ: Europe/Amsterdam
 map:
-  - type: homeassistant_config
-    read_only: false
-options:
-  language: "nl"
-  target_host: "homeassistant.local"
-  target_domain: ""
+  - addon_config:rw
 schema:
-  language: list(nl|en)
-  target_host: str
-  target_domain: str?
+  TZ: str?
+services: []
+url: https://github.com/dkwolf1/HasSecurityDash
