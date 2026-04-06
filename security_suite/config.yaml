@@ -15,6 +15,9 @@ panel_icon: mdi:shield-search
 panel_title: HasSecurityDash
 host_network: true
 hassio_api: true
+privileged:
+  - NET_ADMIN
+  - NET_RAW
 ports:
   8080/tcp: null
 ports_description:

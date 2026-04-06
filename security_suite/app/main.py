@@ -2,6 +2,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import os
+import asyncio
+from datetime import datetime
+from security_scanner import scanner
 
 print("Starting FastAPI app...")
 
@@ -488,16 +491,53 @@ async def get_security_score():
 
 
 @app.get("/api/network/scan")
-async def scan_network():
-    return {
-        "status": "completed",
-        "devices": [
-            {"ip": "192.168.1.1", "type": "router", "ports": [22, 80, 443]},
-            {"ip": "192.168.1.100", "type": "desktop", "ports": [22, 80, 443, 8080]},
-            {"ip": "192.168.1.105", "type": "mobile", "ports": [80, 443]}
-        ],
-        "open_ports": 3
-    }
+async def scan_network(network_range: str = "192.168.1.0/24"):
+    """Perform real security scan of network"""
+    try:
+        print(f"Starting security scan for network: {network_range}")
+        
+        # Perform real security scan
+        scan_results = await scanner.scan_network_security(network_range)
+        
+        if 'error' in scan_results:
+            return {
+                "status": "error",
+                "error": scan_results['error'],
+                "scan_time": scan_results.get('scan_time')
+            }
+        
+        # Format results for UI
+        devices = []
+        for device in scan_results['devices']:
+            device_info = {
+                "ip": device['ip'],
+                "hostname": device.get('hostname', device['ip']),
+                "type": device.get('security_level', 'unknown'),
+                "ports": [port['port'] for port in device.get('open_ports', [])],
+                "services": device.get('services', []),
+                "vulnerabilities": len(device.get('vulnerabilities', [])),
+                "security_level": device.get('security_level', 'unknown')
+            }
+            devices.append(device_info)
+        
+        return {
+            "status": "completed",
+            "scan_time": scan_results['scan_time'],
+            "network_range": scan_results['network_range'],
+            "devices": devices,
+            "open_ports": sum(len(device.get('open_ports', [])) for device in scan_results['devices']),
+            "vulnerabilities": scan_results['vulnerabilities'],
+            "security_score": scan_results['security_score'],
+            "recommendations": scan_results['recommendations']
+        }
+        
+    except Exception as e:
+        print(f"Network scan error: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "scan_time": datetime.now().isoformat()
+        }
 
 
 @app.get("/api/devices")

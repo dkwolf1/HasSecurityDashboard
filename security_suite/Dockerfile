@@ -12,7 +12,10 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     bash \
-    curl
+    curl \
+    nmap \
+    iputils \
+    net-tools
 
 # Create virtual environment
 RUN python3 -m venv $VENV_PATH
@@ -24,7 +27,13 @@ RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
     "uvicorn[standard]" \
     python-multipart \
     jinja2 \
-    aiofiles
+    aiofiles \
+    python-nmap \
+    requests \
+    ssl-checker \
+    cryptography \
+    python-whois \
+    ipaddress
 
 # Create app directory
 WORKDIR /app
