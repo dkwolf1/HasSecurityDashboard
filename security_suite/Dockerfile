@@ -30,7 +30,7 @@ RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
 WORKDIR /app
 
 # Copy application files
-COPY app/ /app/app/
+COPY app/ /app/
 COPY run.sh /app/run.sh
 
 # Make scripts executable

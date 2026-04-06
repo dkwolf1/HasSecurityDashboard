@@ -9,8 +9,8 @@ print("Starting FastAPI app...")
 app = FastAPI(title="HasSecurityDash")
 
 # Setup templates and static files
-templates = Jinja2Templates(directory="/app/app/templates")
-app.mount("/static", StaticFiles(directory="/app/app/static"), name="static")
+templates = Jinja2Templates(directory="/app/templates")
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 print("Templates and static files mounted successfully")
 
 
