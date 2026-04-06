@@ -5,6 +5,7 @@ FROM $BUILD_FROM
 ENV LANG=C.UTF-8
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV VENV_PATH=/opt/venv
 
 # Install system dependencies
 RUN apk add --no-cache \
@@ -13,9 +14,12 @@ RUN apk add --no-cache \
     bash \
     curl
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir \
+# Create virtual environment
+RUN python3 -m venv $VENV_PATH
+
+# Install Python dependencies in virtual environment
+RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
+    $VENV_PATH/bin/pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
     python-multipart \
@@ -49,4 +53,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Start command
-CMD ["/app/run.sh"] ]
+CMD ["/app/run.sh"]
