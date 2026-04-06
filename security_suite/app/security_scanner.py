@@ -1,21 +1,15 @@
-import nmap
 import socket
 import ssl
-import requests
 import subprocess
-import re
 import ipaddress
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import asyncio
-import whois
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 import json
+import re
 
 class SecurityScanner:
     def __init__(self):
-        self.nm = nmap.PortScanner()
         self.security_ports = {
             21: 'FTP - Often unencrypted',
             22: 'SSH - Check for weak passwords',
@@ -44,6 +38,8 @@ class SecurityScanner:
     async def scan_network_security(self, network_range: str = "192.168.1.0/24") -> Dict[str, Any]:
         """Perform comprehensive security scan of network"""
         try:
+            print(f"Starting security scan for network: {network_range}")
+            
             results = {
                 'scan_time': datetime.now().isoformat(),
                 'network_range': network_range,
@@ -53,67 +49,58 @@ class SecurityScanner:
                 'recommendations': []
             }
             
-            # Discover hosts
+            # Discover hosts using simple ping sweep
             hosts = await self._discover_hosts(network_range)
+            print(f"Found {len(hosts)} hosts: {hosts}")
             
             # Scan each host for security issues
-            tasks = []
             for host in hosts:
-                tasks.append(self._scan_host_security(host))
-            
-            host_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            for result in host_results:
-                if isinstance(result, dict):
-                    results['devices'].append(result)
-                    results['vulnerabilities'].extend(result.get('vulnerabilities', []))
+                print(f"Scanning host: {host}")
+                host_result = await self._scan_host_security(host)
+                results['devices'].append(host_result)
+                results['vulnerabilities'].extend(host_result.get('vulnerabilities', []))
             
             # Calculate security score
             results['security_score'] = self._calculate_security_score(results['vulnerabilities'])
             results['recommendations'] = self._generate_recommendations(results['vulnerabilities'])
             
+            print(f"Scan completed. Security score: {results['security_score']}")
             return results
             
         except Exception as e:
+            print(f"Scan error: {str(e)}")
             return {'error': str(e), 'scan_time': datetime.now().isoformat()}
     
     async def _discover_hosts(self, network_range: str) -> List[str]:
-        """Discover active hosts on network"""
+        """Discover active hosts on network using ping"""
         try:
-            # Use nmap for host discovery
-            self.nm.scan(hosts=network_range, arguments='-sn')
+            network = ipaddress.ip_network(network_range)
             hosts = []
             
-            for host in self.nm.all_hosts():
-                if self.nm[host].state() == 'up':
-                    hosts.append(host)
+            # Limit to first 20 IPs to avoid long scans
+            ip_list = list(network.hosts())[:20]
+            
+            for ip in ip_list:
+                try:
+                    # Simple ping check
+                    proc = await asyncio.create_subprocess_exec(
+                        'ping', '-c', '1', '-W', '1', str(ip),
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL
+                    )
+                    await proc.wait()
+                    
+                    if proc.returncode == 0:
+                        hosts.append(str(ip))
+                        print(f"Host found: {ip}")
+                except Exception as e:
+                    print(f"Ping error for {ip}: {e}")
+                    continue
             
             return hosts
         except Exception as e:
-            # Fallback to simple ping sweep
-            return await self._ping_sweep(network_range)
-    
-    async def _ping_sweep(self, network_range: str) -> List[str]:
-        """Fallback ping sweep for host discovery"""
-        network = ipaddress.ip_network(network_range)
-        hosts = []
-        
-        for ip in network.hosts():
-            try:
-                # Simple ping check
-                proc = await asyncio.create_subprocess_exec(
-                    'ping', '-c', '1', '-W', '1', str(ip),
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL
-                )
-                await proc.wait()
-                
-                if proc.returncode == 0:
-                    hosts.append(str(ip))
-            except:
-                continue
-        
-        return hosts
+            print(f"Host discovery error: {e}")
+            return []
     
     async def _scan_host_security(self, host: str) -> Dict[str, Any]:
         """Perform security scan on individual host"""
@@ -127,44 +114,67 @@ class SecurityScanner:
         }
         
         try:
-            # Port scan
-            self.nm.scan(host, arguments='-sS -O --version-intensity 5')
+            print(f"Scanning ports on {host}")
             
-            if host in self.nm.all_hosts():
-                host_info['hostname'] = self.nm[host].hostname() or host_info['hostname']
-                
-                # Analyze open ports
-                for proto in self.nm[host].all_protocols():
-                    ports = self.nm[host][proto].keys()
-                    for port in ports:
-                        port_info = self.nm[host][proto][port]
-                        service_info = {
-                            'port': port,
-                            'protocol': proto,
-                            'state': port_info['state'],
-                            'service': port_info.get('name', 'unknown'),
-                            'version': port_info.get('version', ''),
-                            'security_risk': self._assess_port_security(port, port_info)
-                        }
-                        host_info['open_ports'].append(service_info)
-                        host_info['services'].append(port_info.get('name', 'unknown'))
-                        
-                        # Check for vulnerabilities
-                        vulns = self._check_port_vulnerabilities(port, port_info, host)
-                        host_info['vulnerabilities'].extend(vulns)
-                
-                # SSL/TLS certificate analysis
-                if any(port in [443, 8443] for port in host_info['open_ports']):
-                    ssl_vulns = await self._analyze_ssl_certificates(host)
-                    host_info['vulnerabilities'].extend(ssl_vulns)
+            # Simple port scan for common ports
+            common_ports = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 8080, 8443]
+            
+            for port in common_ports:
+                if await self._is_port_open(host, port):
+                    service_info = {
+                        'port': port,
+                        'protocol': 'tcp',
+                        'state': 'open',
+                        'service': self._guess_service(port),
+                        'version': '',
+                        'security_risk': self._assess_port_security(port)
+                    }
+                    host_info['open_ports'].append(service_info)
+                    host_info['services'].append(service_info['service'])
+                    
+                    # Check for vulnerabilities
+                    vulns = self._check_port_vulnerabilities(port, host)
+                    host_info['vulnerabilities'].extend(vulns)
+                    
+                    print(f"Port {port} open on {host} - {service_info['service']}")
+            
+            # SSL/TLS certificate analysis for HTTPS ports
+            if any(port in [443, 8443] for port_info in host_info['open_ports'] for port_info in [port_info] if port_info['port'] == port_info['port']):
+                ssl_vulns = await self._analyze_ssl_certificates(host)
+                host_info['vulnerabilities'].extend(ssl_vulns)
             
             # Determine security level
             host_info['security_level'] = self._determine_security_level(host_info['vulnerabilities'])
             
+            print(f"Host {host} security level: {host_info['security_level']}")
+            
         except Exception as e:
+            print(f"Host scan error for {host}: {e}")
             host_info['error'] = str(e)
         
         return host_info
+    
+    async def _is_port_open(self, host: str, port: int) -> bool:
+        """Check if port is open"""
+        try:
+            future = asyncio.open_connection(host, port)
+            reader, writer = await asyncio.wait_for(future, timeout=2)
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except:
+            return False
+    
+    def _guess_service(self, port: int) -> str:
+        """Guess service based on port number"""
+        service_map = {
+            21: 'ftp', 22: 'ssh', 23: 'telnet', 25: 'smtp', 53: 'dns',
+            80: 'http', 110: 'pop3', 135: 'rpc', 139: 'netbios', 143: 'imap',
+            443: 'https', 445: 'smb', 993: 'imaps', 995: 'pop3s',
+            1433: 'mssql', 1521: 'oracle', 3306: 'mysql', 3389: 'rdp',
+            5432: 'postgresql', 5900: 'vnc', 8080: 'http-alt', 8443: 'https-alt'
+        }
+        return service_map.get(port, 'unknown')
     
     def _resolve_hostname(self, ip: str) -> str:
         """Resolve hostname from IP"""
@@ -174,7 +184,7 @@ class SecurityScanner:
         except:
             return ip
     
-    def _assess_port_security(self, port: int, port_info: Dict) -> str:
+    def _assess_port_security(self, port: int) -> str:
         """Assess security risk of open port"""
         if port in self.security_ports:
             risk_desc = self.security_ports[port]
@@ -193,12 +203,12 @@ class SecurityScanner:
         
         return 'UNKNOWN SERVICE'
     
-    def _check_port_vulnerabilities(self, port: int, port_info: Dict, host: str) -> List[Dict]:
+    def _check_port_vulnerabilities(self, port: int, host: str) -> List[Dict]:
         """Check for specific vulnerabilities on port"""
         vulnerabilities = []
         
         # Check for default credentials on common services
-        if port == 22 and port_info.get('name') == 'ssh':
+        if port == 22:
             vulnerabilities.append({
                 'type': 'weak_authentication',
                 'severity': 'medium',
@@ -208,7 +218,7 @@ class SecurityScanner:
                 'recommendation': 'Use key-based authentication, disable password auth, change default port'
             })
         
-        elif port == 80 and port_info.get('name') == 'http':
+        elif port == 80:
             vulnerabilities.append({
                 'type': 'unencrypted_protocol',
                 'severity': 'high',
@@ -223,8 +233,8 @@ class SecurityScanner:
                 'type': 'insecure_protocol',
                 'severity': 'critical',
                 'port': port,
-                'service': port_info.get('name', 'unknown'),
-                'description': f'Insecure protocol {port_info.get("name", "unknown")} detected',
+                'service': self._guess_service(port),
+                'description': f'Insecure protocol {self._guess_service(port)} detected',
                 'recommendation': 'Disable protocol, use encrypted alternatives (SFTP, SSH, HTTPS)'
             })
         
@@ -243,8 +253,8 @@ class SecurityScanner:
                 'type': 'database_exposure',
                 'severity': 'critical',
                 'port': port,
-                'service': port_info.get('name', 'database'),
-                'description': f'Database service {port_info.get("name", "unknown")} exposed to network',
+                'service': self._guess_service(port),
+                'description': f'Database service {self._guess_service(port)} exposed to network',
                 'recommendation': 'Restrict database access to localhost, use firewall rules, implement strong authentication'
             })
         
@@ -255,49 +265,66 @@ class SecurityScanner:
         vulnerabilities = []
         
         try:
+            print(f"Analyzing SSL certificate for {host}:443")
+            
             # Check HTTPS certificate
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             
+            # Use socket with timeout
             with socket.create_connection((host, 443), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=host) as ssock:
-                    cert = ssock.getpeercert(binary_form=True)
+                    cert = ssock.getpeercert()
+                    
                     if cert:
-                        cert_parsed = x509.load_der_x509_certificate(cert, default_backend())
-                        
                         # Check certificate expiration
-                        if cert_parsed.not_valid_after < datetime.now():
-                            vulnerabilities.append({
-                                'type': 'expired_certificate',
-                                'severity': 'critical',
-                                'service': 'HTTPS',
-                                'description': f'SSL certificate expired on {cert_parsed.not_valid_after}',
-                                'recommendation': 'Renew SSL certificate immediately'
-                            })
+                        not_after = cert.get('notAfter', '')
+                        if not_after:
+                            # Parse date format from SSL cert
+                            try:
+                                date_str = not_after.replace(' GMT', '')
+                                expiry_date = datetime.strptime(date_str, '%b %d %H:%M:%S %Y')
+                                
+                                if expiry_date < datetime.now():
+                                    vulnerabilities.append({
+                                        'type': 'expired_certificate',
+                                        'severity': 'critical',
+                                        'service': 'HTTPS',
+                                        'description': f'SSL certificate expired on {expiry_date}',
+                                        'recommendation': 'Renew SSL certificate immediately'
+                                    })
+                                
+                                elif expiry_date < datetime.now() + timedelta(days=30):
+                                    vulnerabilities.append({
+                                        'type': 'expiring_certificate',
+                                        'severity': 'medium',
+                                        'service': 'HTTPS',
+                                        'description': f'SSL certificate expires on {expiry_date}',
+                                        'recommendation': 'Renew SSL certificate soon'
+                                    })
+                                
+                                else:
+                                    print(f"SSL certificate valid until {expiry_date}")
+                                    
+                            except ValueError as e:
+                                print(f"Could not parse certificate date: {e}")
                         
-                        # Check certificate validity period
-                        elif cert_parsed.not_valid_after < datetime.now() + timedelta(days=30):
-                            vulnerabilities.append({
-                                'type': 'expiring_certificate',
-                                'severity': 'medium',
-                                'service': 'HTTPS',
-                                'description': f'SSL certificate expires on {cert_parsed.not_valid_after}',
-                                'recommendation': 'Renew SSL certificate soon'
-                            })
-                        
-                        # Check for weak encryption
+                        # Check cipher
                         cipher = ssock.cipher()
-                        if cipher and 'RC4' in cipher[0] or 'MD5' in cipher[0]:
+                        if cipher and ('RC4' in str(cipher) or 'MD5' in str(cipher)):
                             vulnerabilities.append({
                                 'type': 'weak_encryption',
                                 'severity': 'high',
                                 'service': 'HTTPS',
-                                'description': f'Weak cipher suite detected: {cipher[0]}',
+                                'description': f'Weak cipher suite detected: {cipher}',
                                 'recommendation': 'Configure server to use strong cipher suites only'
                             })
+                    else:
+                        print("No certificate found")
         
         except Exception as e:
+            print(f"SSL analysis error for {host}: {e}")
             vulnerabilities.append({
                 'type': 'ssl_error',
                 'severity': 'medium',

@@ -27,11 +27,7 @@ RUN $VENV_PATH/bin/pip install --no-cache-dir --upgrade pip && \
     "uvicorn[standard]" \
     python-multipart \
     jinja2 \
-    aiofiles \
-    python-nmap \
-    requests \
-    cryptography \
-    python-whois
+    aiofiles
 
 # Create app directory
 WORKDIR /app

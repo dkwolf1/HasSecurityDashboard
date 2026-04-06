@@ -351,46 +351,166 @@ async def index(request: Request):
             // Network scan
             async function startNetworkScan() {
                 const button = event.target;
+                const originalText = button.innerHTML;
                 button.disabled = true;
                 button.innerHTML = '<i data-lucide="loader" class="w-4 h-4 inline mr-2 animate-spin"></i>Scanning...';
                 lucide.createIcons();
                 
+                const resultsDiv = document.getElementById('scanResults');
+                
                 try {
-                    const response = await fetch('/api/network/scan');
-                    const data = await response.json();
-                    
-                    const resultsDiv = document.getElementById('scanResults');
+                    // Show scanning progress
                     resultsDiv.innerHTML = `
                         <div class="mt-4 space-y-3">
-                            <div class="bg-green-50 border border-green-200 rounded-md p-3">
+                            <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
                                 <div class="flex items-center">
-                                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600 mr-2"></i>
-                                    <span class="text-sm font-medium text-green-800">Scan completed successfully</span>
+                                    <i data-lucide="search" class="w-5 h-5 text-blue-600 mr-2 animate-pulse"></i>
+                                    <span class="text-sm font-medium text-blue-800">Discovering hosts on network...</span>
                                 </div>
-                                <div class="mt-2 text-sm text-green-700">
-                                    Found ${data.devices.length} devices, ${data.open_ports} open ports detected
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                ${data.devices.map(device => `
-                                    <div class="border border-gray-200 rounded-md p-3">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm font-medium">${device.ip}</span>
-                                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${device.type}</span>
-                                        </div>
-                                        <div class="text-xs text-gray-500 mt-1">Ports: ${device.ports.join(', ')}</div>
+                                <div class="mt-2">
+                                    <div class="w-full bg-blue-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 30%"></div>
                                     </div>
-                                `).join('')}
+                                </div>
                             </div>
                         </div>
                     `;
                     resultsDiv.classList.remove('hidden');
                     lucide.createIcons();
+                    
+                    const response = await fetch('/api/network/scan');
+                    const data = await response.json();
+                    
+                    if (data.status === 'error') {
+                        throw new Error(data.error || 'Scan failed');
+                    }
+                    
+                    // Show scan results
+                    resultsDiv.innerHTML = `
+                        <div class="mt-4 space-y-3">
+                            <div class="bg-green-50 border border-green-200 rounded-md p-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i data-lucide="check-circle" class="w-5 h-5 text-green-600 mr-2"></i>
+                                        <span class="text-sm font-medium text-green-800">Scan completed successfully</span>
+                                    </div>
+                                    <span class="text-xs text-green-600">Security Score: ${data.security_score}/100</span>
+                                </div>
+                                <div class="mt-2 text-sm text-green-700">
+                                    Found ${data.devices.length} devices, ${data.open_ports} open ports detected
+                                </div>
+                            </div>
+                            
+                            ${data.devices.length > 0 ? `
+                                <div class="space-y-2">
+                                    <h3 class="text-sm font-medium text-gray-900">Discovered Devices</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        ${data.devices.map(device => `
+                                            <div class="border border-gray-200 rounded-md p-3 ${device.security_level === 'critical' ? 'border-red-300 bg-red-50' : device.security_level === 'high_risk' ? 'border-orange-300 bg-orange-50' : device.security_level === 'medium_risk' ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'}">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span class="text-sm font-medium">${device.hostname || device.ip}</span>
+                                                    <span class="text-xs px-2 py-1 rounded ${device.security_level === 'critical' ? 'bg-red-100 text-red-800' : device.security_level === 'high_risk' ? 'bg-orange-100 text-orange-800' : device.security_level === 'medium_risk' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                                                        ${device.security_level.replace('_', ' ').toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div class="text-xs text-gray-600 mb-2">${device.ip}</div>
+                                                ${device.ports.length > 0 ? `
+                                                    <div class="space-y-1">
+                                                        <div class="text-xs font-medium text-gray-700">Open Ports:</div>
+                                                        <div class="flex flex-wrap gap-1">
+                                                            ${device.ports.map(port => `
+                                                                <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">${port}</span>
+                                                            `).join('')}
+                                                        </div>
+                                                    </div>
+                                                ` : '<div class="text-xs text-gray-500">No open ports detected</div>'}
+                                                ${device.vulnerabilities > 0 ? `
+                                                    <div class="mt-2 text-xs text-red-600">
+                                                        <i data-lucide="alert-triangle" class="w-3 h-3 inline mr-1"></i>
+                                                        ${device.vulnerabilities} vulnerabilities found
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : '<div class="text-sm text-gray-500">No devices found on network</div>'}
+                            
+                            ${data.vulnerabilities && data.vulnerabilities.length > 0 ? `
+                                <div class="space-y-2">
+                                    <h3 class="text-sm font-medium text-gray-900">Security Issues Found</h3>
+                                    <div class="space-y-2">
+                                        ${data.vulnerabilities.map(vuln => `
+                                            <div class="border-l-4 border-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-500 bg-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-50 p-3">
+                                                <div class="flex items-start">
+                                                    <i data-lucide="${vuln.severity === 'critical' ? 'alert-circle' : vuln.severity === 'high' ? 'alert-triangle' : 'info'}" class="w-4 h-4 text-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-600 mr-2 mt-0.5"></i>
+                                                    <div class="flex-1">
+                                                        <div class="text-sm font-medium text-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-800">
+                                                            ${vuln.service} (Port ${vuln.port})
+                                                        </div>
+                                                        <div class="text-xs text-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-700 mt-1">
+                                                            ${vuln.description}
+                                                        </div>
+                                                        <div class="text-xs text-${vuln.severity === 'critical' ? 'red' : vuln.severity === 'high' ? 'orange' : 'yellow'}-600 mt-1">
+                                                            💡 ${vuln.recommendation}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${data.recommendations && data.recommendations.length > 0 ? `
+                                <div class="space-y-2">
+                                    <h3 class="text-sm font-medium text-gray-900">Security Recommendations</h3>
+                                    <div class="space-y-2">
+                                        ${data.recommendations.map(rec => `
+                                            <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                                                <div class="flex items-start">
+                                                    <i data-lucide="shield-check" class="w-4 h-4 text-blue-600 mr-2 mt-0.5"></i>
+                                                    <div class="text-sm text-blue-800">${rec}</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="text-xs text-gray-500 mt-4">
+                                Scan completed at: ${new Date(data.scan_time).toLocaleString()}
+                            </div>
+                        </div>
+                    `;
+                    resultsDiv.classList.remove('hidden');
+                    lucide.createIcons();
+                    
+                    // Update dashboard if needed
+                    if (typeof loadDashboard === 'function') {
+                        loadDashboard();
+                    }
+                    
                 } catch (error) {
                     console.error('Scan error:', error);
+                    resultsDiv.innerHTML = `
+                        <div class="mt-4">
+                            <div class="bg-red-50 border border-red-200 rounded-md p-3">
+                                <div class="flex items-center">
+                                    <i data-lucide="x-circle" class="w-5 h-5 text-red-600 mr-2"></i>
+                                    <span class="text-sm font-medium text-red-800">Scan failed</span>
+                                </div>
+                                <div class="mt-2 text-sm text-red-700">
+                                    ${error.message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultsDiv.classList.remove('hidden');
+                    lucide.createIcons();
                 } finally {
                     button.disabled = false;
-                    button.innerHTML = '<i data-lucide="search" class="w-4 h-4 inline mr-2"></i>Start Network Scan';
+                    button.innerHTML = originalText;
                     lucide.createIcons();
                 }
             }
