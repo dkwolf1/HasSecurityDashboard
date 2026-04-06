@@ -7,8 +7,8 @@ import os
 app = FastAPI(title="Security Suite")
 
 # Setup templates and static files
-templates = Jinja2Templates(directory="app/templates")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="/app/templates")
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -18,7 +18,7 @@ async def index(request: Request):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "app": "Security Suite", "version": "0.1.0"}
 
 
 @app.get("/api/security/score")
