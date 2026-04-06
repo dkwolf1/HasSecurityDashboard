@@ -1,0 +1,30 @@
+name: "Security Suite"
+version: "0.1.0"
+slug: "security_suite"
+description: "Security auditing add-on for Home Assistant OS"
+url: "https://github.com/dkwolf1/HasSecurityDash"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+  - armhf
+  - i386
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:shield-search
+panel_title: Security Suite
+host_network: true
+map:
+  - type: homeassistant_config
+    read_only: false
+options:
+  language: "nl"
+  target_host: "homeassistant.local"
+  target_domain: ""
+schema:
+  language: list(nl|en)
+  target_host: str
+  target_domain: str?
