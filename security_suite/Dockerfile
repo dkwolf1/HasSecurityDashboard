@@ -12,8 +12,7 @@ RUN python3 -m venv $VENV_PATH \
     && $VENV_PATH/bin/pip install --no-cache-dir fastapi "uvicorn[standard]" python-multipart jinja2 aiofiles
 
 WORKDIR /app
-COPY app /app/app
-COPY run.sh /app/run.sh
+COPY . /app/
 RUN chmod +x /app/run.sh
 
 CMD [ "/app/run.sh" ] ]
